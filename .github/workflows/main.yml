@@ -13,6 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check files
+        run: |
+          ls -la
+          for f in main.dart app_pubspec.yaml MainActivity.kt icon.png send.png receive.png files.png; do
+            if [ ! -f "$f" ]; then echo "::error::НЕТ ФАЙЛА В РЕПОЗИТОРИИ: $f"; exit 1; fi
+          done
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -20,11 +27,12 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.5'
           channel: stable
           cache: true
 
       - name: Create Flutter project
-        run: flutter create --org com.bluelink --project-name bluelink --platforms=android,ios app
+        run: flutter create --org com.bluelink --project-name bluelink --platforms=android app
 
       - name: Copy sources
         run: |
@@ -32,8 +40,9 @@ jobs:
           cp main.dart app/lib/main.dart
           mkdir -p app/assets
           cp icon.png send.png receive.png files.png app/assets/
-          mkdir -p app/android/app/src/main/kotlin/com/bluelink/bluelink
-          cp MainActivity.kt app/android/app/src/main/kotlin/com/bluelink/bluelink/MainActivity.kt
+          D=app/android/app/src/main/kotlin/com/bluelink/bluelink
+          mkdir -p $D
+          cp MainActivity.kt $D/MainActivity.kt
 
       - name: Patch Android manifest
         run: |
@@ -45,12 +54,18 @@ jobs:
           done
           cat $M
 
-      - name: Build
+      - name: Get packages
         working-directory: app
-        run: |
-          flutter pub get
-          dart run flutter_launcher_icons
-          flutter build apk --release
+        run: flutter pub get
+
+      - name: Make icons
+        working-directory: app
+        continue-on-error: true
+        run: dart run flutter_launcher_icons
+
+      - name: Build APK
+        working-directory: app
+        run: flutter build apk --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
